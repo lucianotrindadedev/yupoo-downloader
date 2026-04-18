@@ -47,8 +47,49 @@ HEADERS = {
 }
 
 # ─── Autenticação Google Drive ───────────────────────────────────────────────
+def setup_env_credentials():
+    """Converte variáveis de ambiente em arquivos para compatibilidade com a lib do Google"""
+    creds_json = os.environ.get("GOOGLE_CREDENTIALS")
+    token_json = os.environ.get("GOOGLE_TOKEN")
+    
+    # Diagnóstico inicial silencioso
+    if not creds_json and not token_json:
+        dim("Nenhuma credencial detectada via variáveis de ambiente.")
+        return
+
+    def clean_json(content):
+        if not content: return None
+        content = content.strip()
+        # Remove aspas extras que podem vir de gerenciadores de env vars
+        if (content.startswith("'") and content.endswith("'")) or \
+           (content.startswith('"') and content.endswith('"')):
+            content = content[1:-1].strip()
+        return content
+
+    if creds_json:
+        clean_creds = clean_json(creds_json)
+        try:
+            # Tenta validar se é JSON mesmo
+            json.loads(clean_creds)
+            with open(CREDENTIALS_FILE, "w", encoding="utf-8") as f:
+                f.write(clean_creds)
+            ok(f"Arquivo '{CREDENTIALS_FILE}' configurado via variável de ambiente.")
+        except Exception as e:
+            err(f"Conteúdo em GOOGLE_CREDENTIALS não é um JSON válido: {e}")
+        
+    if token_json:
+        clean_token = clean_json(token_json)
+        try:
+            json.loads(clean_token)
+            with open(TOKEN_FILE, "w", encoding="utf-8") as f:
+                f.write(clean_token)
+            ok(f"Arquivo '{TOKEN_FILE}' configurado via variável de ambiente.")
+        except Exception as e:
+            err(f"Conteúdo em GOOGLE_TOKEN não é um JSON válido: {e}")
+
 def authenticate_google():
-    """Autentica via OAuth2 e retorna o serviço do Drive."""
+    """Autentica via OAuth2 e retorna o servio do Drive."""
+    setup_env_credentials()
     creds = None
 
     if os.path.exists(TOKEN_FILE):
@@ -61,15 +102,15 @@ def authenticate_google():
         else:
             if not os.path.exists(CREDENTIALS_FILE):
                 err(f"Arquivo '{CREDENTIALS_FILE}' não encontrado!")
+                warn("Nota: Verifique se a variável GOOGLE_CREDENTIALS está definida no Docker/Coolify.")
                 print(f"""
-  {BOLD}Como criar o arquivo credentials.json:{RESET}
-  1. Acesse: https://console.cloud.google.com
-  2. Crie um projeto (ou selecione um existente)
-  3. Menu lateral → APIs e Serviços → Biblioteca
-  4. Busque "Google Drive API" e ative
-  5. APIs e Serviços → Credenciais → Criar credenciais → ID do cliente OAuth
-  6. Tipo: {BOLD}Aplicativo para computador{RESET}
-  7. Baixe o JSON e salve como {BOLD}credentials.json{RESET} na mesma pasta desse script
+  {BOLD}Como resolver:{RESET}
+  1. Se estiver rodando LOCAL: 
+     Certifique-se que o arquivo {BOLD}credentials.json{RESET} está na mesma pasta.
+  
+  2. Se estiver rodando no DOCKER/VPS/COOLIFY:
+     Defina a variável de ambiente {BOLD}GOOGLE_CREDENTIALS{RESET} com o conteúdo 
+     INTEIRO do arquivo JSON das suas credenciais do Google.
 """)
                 sys.exit(1)
 

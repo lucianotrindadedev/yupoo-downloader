@@ -13,5 +13,7 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - PYTHONIOENCODING=utf-8
+      # NOTA: No servidor (Coolify/Docker), defina estas variáveis com o conteúdo 
+      # integral (RAW JSON) dos arquivos credentials.json e token.json.
       - GOOGLE_CREDENTIALS=${GOOGLE_CREDENTIALS}
       - GOOGLE_TOKEN=${GOOGLE_TOKEN}

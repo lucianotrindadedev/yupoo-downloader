@@ -12,5 +12,5 @@
   "skip_existing": true,
 
   "delay_seconds": 0.5,
-  "stop_after_consecutive_skipped": 10
+  "stop_after_consecutive_skipped": 0
 }

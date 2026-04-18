@@ -125,9 +125,14 @@ def authenticate_google():
     return build("drive", "v3", credentials=creds)
 
 # ─── Google Drive helpers ─────────────────────────────────────────────────────
+def escape_q(value):
+    """Escapa aspas simples para consultas do Google Drive."""
+    return value.replace("'", "\\'")
+
 def drive_find_or_create_folder(service, name, parent_id=None):
     """Busca pasta pelo nome ou cria se não existir."""
-    query = f"name='{name}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
+    safe_name = escape_q(name)
+    query = f"name='{safe_name}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
     if parent_id:
         query += f" and '{parent_id}' in parents"
 
@@ -171,7 +176,8 @@ def drive_list_files(service, folder_id):
 
 def drive_file_exists(service, name, folder_id):
     """[LEGACY] Verifica se um arquivo já existe na pasta (Chamada individual lenta)."""
-    query = f"name='{name}' and '{folder_id}' in parents and trashed=false"
+    safe_name = escape_q(name)
+    query = f"name='{safe_name}' and '{folder_id}' in parents and trashed=false"
     results = service.files().list(q=query, fields="files(id)").execute()
     return len(results.get("files", [])) > 0
 

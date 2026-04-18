@@ -1,0 +1,21 @@
+# SEGURANÇA: NUNCA PUBLICAR ESTES ARQUIVOS
+credentials.json
+token.json
+client_secret*.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+env/
+venv/
+.env
+
+# Downloads Locais
+Yupoo Downloads/
+*.log
+
+# IDE
+.vscode/
+.idea/

@@ -1,0 +1,15 @@
+{
+  "_comentario": "Edite esse arquivo para configurar o downloader. Todos os campos são opcionais.",
+
+  "urls": [
+    "https://ezfashion.x.yupoo.com/albums/"
+  ],
+
+  "root_folder": "Yupoo Downloads",
+
+  "subfolder_per_album": true,
+
+  "skip_existing": true,
+
+  "delay_seconds": 0.5
+}

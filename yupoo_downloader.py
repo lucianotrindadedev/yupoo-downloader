@@ -147,8 +147,30 @@ def drive_find_or_create_folder(service, name, parent_id=None):
     folder = service.files().create(body=meta, fields="id").execute()
     return folder["id"]
 
+def drive_list_files(service, folder_id):
+    """Retorna um set com todos os nomes de arquivos em uma pasta."""
+    files_in_folder = set()
+    page_token = None
+    
+    while True:
+        query = f"'{folder_id}' in parents and trashed=false"
+        results = service.files().list(
+            q=query, 
+            fields="nextPageToken, files(name)",
+            pageToken=page_token
+        ).execute()
+        
+        for f in results.get("files", []):
+            files_in_folder.add(f["name"])
+            
+        page_token = results.get("nextPageToken")
+        if not page_token:
+            break
+            
+    return files_in_folder
+
 def drive_file_exists(service, name, folder_id):
-    """Verifica se um arquivo já existe na pasta."""
+    """[LEGACY] Verifica se um arquivo já existe na pasta (Chamada individual lenta)."""
     query = f"name='{name}' and '{folder_id}' in parents and trashed=false"
     results = service.files().list(q=query, fields="files(id)").execute()
     return len(results.get("files", [])) > 0
@@ -347,7 +369,7 @@ def scrape_all_pages(session, start_url):
 
         new = [i for i in images if i not in all_images]
         all_images.extend(new)
-        info(f"{len(new)} imagens novas nessa página (total: {len(all_images)})")
+        dim(f"{len(images)} imagens encontradas nesta página (acumulado: {len(all_images)})")
 
         for p in next_pages:
             if p not in visited:
@@ -396,11 +418,19 @@ def process_album(session, service, album_url, root_folder_id, opts):
 
     stats = {"total": len(images), "sent": 0, "skipped": 0, "failed": 0}
 
+    # Busca arquivos existentes de uma vez só (Otimização)
+    existing_files = set()
+    if opts["skip_existing"]:
+        try:
+            existing_files = drive_list_files(service, folder_id)
+        except Exception as e:
+            warn(f"Falha ao listar arquivos da pasta: {e}. Prosseguindo sem cache local.")
+
     for i, img_url in enumerate(images, 1):
         filename = safe_filename(img_url, i)
 
-        if opts["skip_existing"] and drive_file_exists(service, filename, folder_id):
-            dim(f"[{i}/{len(images)}] Já existe: {filename}")
+        if opts["skip_existing"] and filename in existing_files:
+            # dim(f"[{i}/{len(images)}] Já existe: {filename}") # Otimizado: silenciar para logs mais limpos
             stats["skipped"] += 1
             continue
 
@@ -422,6 +452,11 @@ def process_album(session, service, album_url, root_folder_id, opts):
             stats["failed"] += 1
 
         time.sleep(opts["delay"])
+
+    # Se todas as imagens do álbum foram puladas, marca como completamente pulado
+    if stats["skipped"] == stats["total"] and stats["total"] > 0:
+        stats["completely_skipped"] = True
+        dim(f"Álbum já estava 100% sincronizado ({stats['total']} imagens).")
 
     return stats
 
@@ -503,6 +538,7 @@ def main():
         "subfolder_per_album": config.get("subfolder_per_album", True),
         "skip_existing": config.get("skip_existing", True),
         "delay": config.get("delay_seconds", 0.5),
+        "stop_after_consecutive_skipped": config.get("stop_after_consecutive_skipped", 10),
     }
 
     print(f"""
@@ -510,6 +546,7 @@ def main():
   • Pasta raiz no Drive:   {opts['root_folder']}
   • Subpasta por álbum:    {'sim' if opts['subfolder_per_album'] else 'não'}
   • Pular já enviadas:     {'sim' if opts['skip_existing'] else 'não'}
+  • Parar após sync:       {opts['stop_after_consecutive_skipped']} álbuns (0=desativado)
   • Intervalo entre imgs:  {opts['delay']}s
   • Álbuns a processar:    {len(urls)}
 """)
@@ -526,10 +563,23 @@ def main():
     # ── Processa cada álbum ──────────────────────────────────────────────────
     # Já temos a sessão instanciada acima na expansão
     all_stats = []
+    consecutive_skipped = 0
 
-    for url in urls:
+    for i, url in enumerate(urls, 1):
         s = process_album(session, service, url, root_id, opts)
         all_stats.append(s)
+
+        if s.get("completely_skipped"):
+            consecutive_skipped += 1
+        else:
+            consecutive_skipped = 0
+
+        # Lógica de parada antecipada (Early Exit)
+        limit = opts.get("stop_after_consecutive_skipped", 0)
+        if limit > 0 and consecutive_skipped >= limit:
+            print(f"\n{BOLD}{YELLOW}>>> Limite de álbuns já sincronizados atingido ({limit}).{RESET}")
+            print(f"{YELLOW}>>> Assumindo que o restante da loja já foi processado anteriormente.{RESET}")
+            break
 
     print_summary(all_stats)
 

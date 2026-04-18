@@ -13,3 +13,5 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - PYTHONIOENCODING=utf-8
+      - GOOGLE_CREDENTIALS=${GOOGLE_CREDENTIALS}
+      - GOOGLE_TOKEN=${GOOGLE_TOKEN}
